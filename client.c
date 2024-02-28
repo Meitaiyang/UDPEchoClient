@@ -39,13 +39,6 @@ int main()
     result = connect(sockfd, (struct sockaddr *)&address, len);
     printf("%d\n", result);
 
-    while (result == -1 && wait_interval < MAX_WAIT_INTERVAL){
-        wait_interval = BASE * pow((double)multiplier, (double)(retry_time++));
-        printf("%f\n", wait_interval);
-        usleep((int)wait_interval*1000);
-    
-        result = connect(sockfd, (struct sockaddr *)&address, len);
-    } 
 
     if (result == -1)
     {
@@ -60,11 +53,25 @@ int main()
 
     // Read the response from the server
     ssize_t bytes_read = read(sockfd, buffer, BUFFER_SIZE);
+    printf("Size: %ld\n", (long)bytes_read);
+    while (bytes_read <= 0 && wait_interval<=MAX_WAIT_INTERVAL){
+        
+        wait_interval = BASE * pow((double)multiplier, (double)(retry_time++));
+        printf("%f\n", wait_interval);
+        usleep((int)wait_interval*1000);
+
+        bytes_read = read(sockfd, buffer, BUFFER_SIZE);
+    }
+    
+
     if (bytes_read > 0)
     {
         // Ensure the received data is null-terminated
         buffer[bytes_read] = '\0';
         printf("Received from server: %s\n", buffer);
+    } else {
+        perror("oops: client");
+        exit(0);
     }
 
     close(sockfd);

@@ -43,18 +43,19 @@ int main()
 
         /* We can now read/write to client on client_sockfd. */
         ssize_t bytes_read = read(client_sockfd, buffer, BUFFER_SIZE);
-        if(fork() == 0){
-            if (bytes_read > 0) {
+        if (bytes_read > 0) {
+            if(fork() == 0){
                 printf("Received: %s\n", buffer);
                 
                 // Echo back the modified string to the client
-                write(client_sockfd, buffer, bytes_read); 
+                // usleep(5000*1000);
+                // write(client_sockfd, buffer, bytes_read); 
                 close(client_sockfd);
+        
+            } else {
+                close(client_sockfd);
+                exit(0);
             }
-
-        } else {
-            close(client_sockfd);
-            exit(0);
         }
 
     }   

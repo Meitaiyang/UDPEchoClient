@@ -15,66 +15,65 @@
 int main()
 {
     int sockfd;
-    int len;
-    struct sockaddr_in address;
-    int result;
-    int multiplier = 2;
-    int retry_time = 0;
-    double wait_interval=0;
-
+    struct sockaddr_in server_address;
+    socklen_t server_len;
     char buffer[BUFFER_SIZE]; // Buffer for the string
 
     // Example string to send
     const char *message = "Hello, server!";
 
-    // Create a socket for the client.
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    // Create a UDP socket for the client.
+    sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+
+    if (sockfd < 0) {
+        perror("socket creation failed");
+        exit(EXIT_FAILURE);
+    }
+
+    memset(&server_address, 0, sizeof(server_address));
 
     // Name the socket, as agreed with the server.
-    address.sin_family = AF_INET;
-    address.sin_addr.s_addr = inet_addr("127.0.0.1");
-    address.sin_port = 9734;
-    len = sizeof(address);
+    server_address.sin_family = AF_INET;
+    server_address.sin_addr.s_addr = inet_addr("127.0.0.1");
+    server_address.sin_port = htons(9734);
+    server_len = sizeof(server_address);
 
-    result = connect(sockfd, (struct sockaddr *)&address, len);
-    printf("%d\n", result);
-
-
-    if (result == -1)
-    {
-        perror("oops: client");
-        exit(0);
-    }
-
-    // We can now read/write via sockfd.
+    int retry_time = 0;
+    double wait_interval = 0;
+    ssize_t bytes_sent, bytes_read;
+    int multiplier = 2;
 
     // Send the message to the server
-    write(sockfd, message, strlen(message));
+    bytes_sent = sendto(sockfd, message, strlen(message), 0,
+                        (const struct sockaddr *)&server_address, server_len);
 
-    // Read the response from the server
-    ssize_t bytes_read = read(sockfd, buffer, BUFFER_SIZE);
-    printf("Size: %ld\n", (long)bytes_read);
-    while (bytes_read <= 0 && wait_interval<=MAX_WAIT_INTERVAL){
-        
-        wait_interval = BASE * pow((double)multiplier, (double)(retry_time++));
-        printf("%f\n", wait_interval);
-        usleep((int)wait_interval*1000);
-
-        bytes_read = read(sockfd, buffer, BUFFER_SIZE);
+    if (bytes_sent < 0) {
+        perror("sendto failed");
+        exit(EXIT_FAILURE);
     }
-    
 
-    if (bytes_read > 0)
-    {
-        // Ensure the received data is null-terminated
-        buffer[bytes_read] = '\0';
-        printf("Received from server: %s\n", buffer);
-    } else {
-        perror("oops: client");
-        exit(0);
+    // Try to receive a response with exponential backoff
+    while (wait_interval < MAX_WAIT_INTERVAL) {
+        bytes_read = recvfrom(sockfd, buffer, BUFFER_SIZE, MSG_DONTWAIT,
+                              (struct sockaddr *)&server_address, &server_len);
+
+        if (bytes_read > 0) {
+            // Ensure the received data is null-terminated
+            buffer[bytes_read] = '\0';
+            printf("Received from server: %s\n", buffer);
+            break; // Exit the loop if we receive data
+        } else {
+            wait_interval = BASE * pow(multiplier, retry_time++);
+            // if (wait_interval > MAX_WAIT_INTERVAL) wait_interval = MAX_WAIT_INTERVAL;
+            usleep((int)wait_interval * 1000); // Wait before retrying
+            printf("%d\n", (int)wait_interval);
+        }
+    }
+
+    if (bytes_read <= 0) {
+        printf("Server did not respond.\n");
     }
 
     close(sockfd);
-    return 1;
+    return 0;
 }
-

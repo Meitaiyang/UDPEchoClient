@@ -66,7 +66,6 @@ int main()
             wait_interval = BASE * pow(multiplier, retry_time++);
             // if (wait_interval > MAX_WAIT_INTERVAL) wait_interval = MAX_WAIT_INTERVAL;
             usleep((int)wait_interval * 1000); // Wait before retrying
-            printf("%d\n", (int)wait_interval);
         }
     }
 

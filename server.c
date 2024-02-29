@@ -1,64 +1,84 @@
-#include <sys/types.h>
-#include <sys/socket.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
 #include <unistd.h>
 #include <signal.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 
 #define BUFFER_SIZE 256
 
-int main()
-{
-    int server_sockfd, client_sockfd;
-    int server_len, client_len;
-    struct sockaddr_in server_address;
-    struct sockaddr_in client_address;
+int server_sockfd;
 
-    /* Create an unnamed socket for the server. */
-    server_sockfd = socket(AF_INET, SOCK_STREAM, 0);
-
-    /* Name the socket. */
-    server_address.sin_family = AF_INET;
-    server_address.sin_addr.s_addr = inet_addr("127.0.0.1");
-    server_address.sin_port = 9734;
-    server_len = sizeof(server_address);
-    bind(server_sockfd, (struct sockaddr *)&server_address, server_len);
-
-    /* Create a connection queue and wait for clients. */
-    listen(server_sockfd, 5); 
-
-    signal(SIGCHLD, SIG_IGN);
-
-    while(1) {
-        char buffer[BUFFER_SIZE]; 
-
-        printf("server waiting\n");
-
-        /* Accept a connection. */
-        client_len = sizeof(client_address);
-        client_sockfd = accept(server_sockfd, 
-            (struct sockaddr *)&client_address, &client_len);
-
-        /* We can now read/write to client on client_sockfd. */
-        ssize_t bytes_read = read(client_sockfd, buffer, BUFFER_SIZE);
-        if (bytes_read > 0) {
-            if(fork() == 0){
-                printf("Received: %s\n", buffer);
-                
-                // Echo back the modified string to the client
-                // usleep(5000*1000);
-                // write(client_sockfd, buffer, bytes_read); 
-                close(client_sockfd);
-        
-            } else {
-                close(client_sockfd);
-                exit(0);
-            }
-        }
-
-    }   
-    return 0;
+void sigint_handler(int sig) {
+    printf("Terminating server...\n");
+    close(server_sockfd); // Close the server socket
+    exit(0); // Exit the program
 }
 
+int main(int argc, char *argv[]) {
+
+    int respond = 1;
+
+    for(int i=1 ; i<argc ; i++) {
+        if(strcmp(argv[i], "--no-resp") == 0) {
+            respond=0;
+            break;
+        }
+    }
+
+    char buffer[BUFFER_SIZE];
+    struct sockaddr_in server_address;
+    struct sockaddr_in client_address;
+    int client_len = sizeof(client_address);
+    int server_len;
+
+    // Set up signal handler for SIGINT
+    signal(SIGINT, sigint_handler);
+
+    /* Create a UDP socket for the server */
+    server_sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (server_sockfd < 0) {
+        perror("socket creation failed");
+        exit(EXIT_FAILURE);
+    }
+
+    memset(&server_address, 0, sizeof(server_address));
+
+    /* Name the socket */
+    server_address.sin_family = AF_INET;
+    server_address.sin_addr.s_addr = INADDR_ANY;
+    server_address.sin_port = htons(9734);
+    server_len = sizeof(server_address);
+
+    /* Bind the socket to the address */
+    if (bind(server_sockfd, (const struct sockaddr *)&server_address, server_len) < 0) {
+        perror("bind failed");
+        exit(EXIT_FAILURE);
+    }
+
+    printf("UDP server waiting for messages...\n");
+
+    while (1) {
+
+        int n = recvfrom(server_sockfd, buffer, BUFFER_SIZE, 0, (struct sockaddr *)&client_address, &client_len);
+        if (n < 0) {
+            perror("recvfrom failed");
+            continue;
+        }
+
+        buffer[n] = '\0';
+        printf("Received: %s\n", buffer);
+
+        if (respond) {
+            // Echo the message back to the client
+            sendto(server_sockfd, buffer, n, 0, (const struct sockaddr *)&client_address, client_len);
+            printf("Message sent back to client.\n");
+        } else {
+            printf("Server is configured not to respond.\n");
+        }
+    }
+
+    return 0;
+}

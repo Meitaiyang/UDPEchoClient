@@ -27,7 +27,7 @@ int main()
 
     if (sockfd < 0) {
         perror("socket creation failed");
-        exit(EXIT_FAILURE);
+        exit(1);
     }
 
     memset(&server_address, 0, sizeof(server_address));
@@ -49,7 +49,7 @@ int main()
 
     if (bytes_sent < 0) {
         perror("sendto failed");
-        exit(EXIT_FAILURE);
+        exit(1);
     }
 
     // Try to receive a response with exponential backoff
@@ -71,6 +71,7 @@ int main()
 
     if (bytes_read <= 0) {
         printf("Server did not respond.\n");
+        exit(1);
     }
 
     close(sockfd);

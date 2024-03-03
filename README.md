@@ -2,6 +2,10 @@
 
 這是一個UDP Server的範例程式，使用C語言實做。
 
+## 範例影片
+
+https://github.com/Meitaiyang/UDPEchoClient/assets/76491618/f7ca6e81-5b9c-400e-ad60-bfd62bdaaa08
+
 ## 安裝
 
 你可以使用Docker來建立Debain環境，並且使用以下指令來安裝所需的套件。
